@@ -2,7 +2,12 @@
 (#1145 extended) is preserved, not lost."""
 from __future__ import annotations
 
-from graphify.build import _lost_saved_semantic_nodes
+import json
+from pathlib import Path
+
+from graphify.build import _lost_saved_semantic_nodes, build_from_json
+from graphify.export import to_json
+from graphify.watch import _check_shrink
 
 
 def _sem(node_id: str, label: str, sf: str) -> dict:
@@ -99,3 +104,39 @@ def test_malformed_non_string_source_file_does_not_crash():
     new = [{"id": "n1", "label": "N1", "source_file": True}]
     lost = _lost_saved_semantic_nodes(saved, new)
     assert [n["id"] for n in lost] == ["s1"]
+
+
+# --- end-to-end: the write paths that call the guard (#4389) ---
+
+
+def _saved_graph(tmp_path: Path, sem: dict) -> tuple[Path, dict]:
+    out = tmp_path / "graph.json"
+    assert to_json(build_from_json({"nodes": [sem], "edges": []}), {}, str(out), force=True)
+    return out, json.loads(out.read_text(encoding="utf-8"))
+
+
+def _node_data(G) -> dict:
+    return {"nodes": [{"id": nid, **attrs} for nid, attrs in G.nodes(data=True)], "links": []}
+
+
+def test_to_json_writes_after_ghost_dedup(tmp_path):
+    sem = _sem("src_models_user_ts_user", "User", "src/models/user.ts")
+    out, _ = _saved_graph(tmp_path, sem)
+    G = build_from_json({"nodes": [sem, _ast("user_user", "User", "src/models/user.ts")], "edges": []})
+    assert list(G.nodes) == ["user_user"]  # ghost id folded into its AST twin
+    assert to_json(G, {}, str(out)) is True
+
+
+def test_to_json_still_refuses_genuine_loss(tmp_path, capsys):
+    sem = _sem("src_models_user_ts_user", "User", "src/models/user.ts")
+    out, _ = _saved_graph(tmp_path, sem)
+    G = build_from_json({"nodes": [_ast("user_account", "Account", "src/models/user.ts")], "edges": []})
+    assert to_json(G, {}, str(out)) is False
+    assert "src_models_user_ts_user" in capsys.readouterr().err
+
+
+def test_check_shrink_allows_ghost_dedup(tmp_path):
+    sem = _sem("src_models_user_ts_user", "User", "src/models/user.ts")
+    _, existing = _saved_graph(tmp_path, sem)
+    G = build_from_json({"nodes": [sem, _ast("user_user", "User", "src/models/user.ts")], "edges": []})
+    assert _check_shrink(force=False, existing_data=existing, new_data=_node_data(G)) is True

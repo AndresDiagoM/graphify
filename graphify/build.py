@@ -450,10 +450,11 @@ def _normalize_hyperedge_members(he: object) -> None:
 def _fold_node_aliases(node: dict) -> None:
     """Fold legacy node field aliases onto canonical keys, in place (#2194).
 
-    ``name`` -> ``label`` and ``path`` -> ``source_file``. Uses an empty-check
-    (not mere key presence) so a node carrying ``label: ""``/``None`` next to a
-    real ``name`` is healed too. When the canonical field already holds a value
-    it wins and the alias key is left untouched. Without this fold an alias-only
+    ``name`` -> ``label`` and ``file``/``path``/``filepath`` -> ``source_file``
+    (first non-blank alias in that order wins). Uses an empty-check (not mere
+    key presence) so a node carrying ``label: ""``/``None`` next to a real
+    ``name`` is healed too. When the canonical field already holds a value it
+    wins and the alias key is left untouched. Without this fold an alias-only
     node enters the graph with no label/source_file: it fails validation, gets
     ``norm_label == ""`` (invisible to query/explain), and is excluded from every
     label-keyed merge/dedup — a permanent ghost that ``graphify update``
@@ -472,9 +473,10 @@ def _fold_node_aliases(node: dict) -> None:
 def _fold_edge_aliases(edge: dict) -> None:
     """Fold legacy edge field aliases onto canonical keys, in place (#2194).
 
-    ``type`` -> ``relation``. A ``confidence_score`` float with no ``confidence``
-    enum backfills ``confidence: "INFERRED"`` — never EXTRACTED (alias recovery
-    is not provenance) and never a threshold mapping of the float. The
+    ``type``/``relationship`` -> ``relation`` (``type`` checked first). A
+    ``confidence_score`` float with no ``confidence`` enum backfills
+    ``confidence: "INFERRED"`` — never EXTRACTED (alias recovery is not
+    provenance) and never a threshold mapping of the float. The
     ``confidence_score`` key itself is NOT popped: it is a legitimate companion
     field that the edge loop sanitizes and to_json round-trips.
 
@@ -1830,7 +1832,7 @@ def build(
         # coerces too, but that runs after dedup — too late for this path.
         _coerce_non_string_ids(combined)
         # Fold legacy node field aliases before dedup (#2194): dedup runs BEFORE
-        # build_from_json and keys on `label`, so a `name`/`path` alias node
+        # build_from_json and keys on `label`, so a `name`/`file`/`path` alias node
         # would be invisible to it and only label-dedup one build later, after
         # build_from_json's own fold has healed the persisted graph.json.
         for n in combined["nodes"]:
