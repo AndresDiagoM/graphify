@@ -87,6 +87,13 @@ def _lost_saved_semantic_nodes(
         if (norm := _norm_source_file(source))
     }
     new_ids = {node.get("id") for node in new_nodes if isinstance(node, dict)}
+    # A semantic ghost deduplicated into its AST twin (#1145) loses its id but
+    # the symbol survives at the same (source_file, label).
+    new_loc_nodes = {
+        (_norm_source_file(node["source_file"]), str(node.get("label", "")).strip())
+        for node in new_nodes
+        if isinstance(node, dict) and isinstance(node.get("source_file"), str) and node.get("label")
+    }
     # cluster-only and build_from_json rewrite a legacy semantic id to its
     # canonical stem, then fold a bare doc id into its `_doc` twin. That id
     # is the same node. A missing rationale id has no such successor.
@@ -115,7 +122,11 @@ def _lost_saved_semantic_nodes(
             continue
         if isinstance(node_id, str) and _renamed_present(node_id):
             continue
-        source = _norm_source_file(node.get("source_file"))
+        sf_val = node.get("source_file")
+        source = _norm_source_file(sf_val) if isinstance(sf_val, str) else None
+        lbl = str(node.get("label", "")).strip()
+        if source and lbl and (source, lbl) in new_loc_nodes:
+            continue
         if source and source in deleted:
             continue
         lost.append(node)
@@ -434,8 +445,12 @@ def _fold_node_aliases(node: dict) -> None:
     """
     if not node.get("label") and isinstance(node.get("name"), str) and node["name"]:
         node["label"] = node.pop("name")
-    if not node.get("source_file") and isinstance(node.get("path"), str) and node["path"]:
-        node["source_file"] = node.pop("path")
+    if not node.get("source_file"):
+        for alias in ("file", "path", "filepath"):
+            val = node.get(alias)
+            if isinstance(val, str) and val.strip():
+                node["source_file"] = node.pop(alias)
+                break
 
 
 def _fold_edge_aliases(edge: dict) -> None:
@@ -458,6 +473,8 @@ def _fold_edge_aliases(edge: dict) -> None:
     """
     if not edge.get("relation") and isinstance(edge.get("type"), str) and edge["type"]:
         edge["relation"] = edge.pop("type")
+    if not edge.get("relation") and isinstance(edge.get("relationship"), str) and edge["relationship"]:
+        edge["relation"] = edge.pop("relationship")
     _conf = edge.get("confidence")
     if isinstance(_conf, (int, float)) and not isinstance(_conf, bool):
         if edge.get("confidence_score") is None:
