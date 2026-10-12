@@ -39,6 +39,33 @@ def test_deduplicated_into_ast_node_is_not_lost():
     assert _lost_saved_semantic_nodes(saved, new) == []
 
 
+def test_non_ast_replacement_is_not_excused():
+    saved = [_sem("ghost_bar", "bar", "src/foo.py")]
+    new = [_sem("other_bar", "bar", "src/foo.py")]
+    lost = _lost_saved_semantic_nodes(saved, new)
+    assert [n["id"] for n in lost] == ["ghost_bar"]
+
+
+def test_ast_label_collision_is_not_excused():
+    saved = [_sem("ghost_bar", "bar", "src/foo.py")]
+    new = [
+        _ast("foo_py_bar_1", "bar", "src/foo.py"),
+        _ast("foo_py_bar_2", "bar", "src/foo.py"),
+    ]
+    lost = _lost_saved_semantic_nodes(saved, new)
+    assert [n["id"] for n in lost] == ["ghost_bar"]
+
+
+def test_ast_collision_after_normalization_is_not_excused():
+    saved = [_sem("ghost_bar", "bar", "src/foo.py")]
+    new = [
+        _ast("foo_py_bar_1", "bar", "src/foo.py"),
+        _ast("foo_py_bar_2", "bar", "src\\foo.py"),
+    ]
+    lost = _lost_saved_semantic_nodes(saved, new)
+    assert [n["id"] for n in lost] == ["ghost_bar"]
+
+
 def test_dedup_match_normalizes_source_file():
     saved = [_sem("ghost_bar", "bar", "src\\foo.py")]
     new = [_ast("foo_py_bar", "bar", "src/foo.py")]

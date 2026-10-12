@@ -89,11 +89,25 @@ def _lost_saved_semantic_nodes(
     new_ids = {node.get("id") for node in new_nodes if isinstance(node, dict)}
     # A semantic ghost deduplicated into its AST twin (#1145) loses its id but
     # the symbol survives at the same (source_file, label).
-    new_loc_nodes = {
-        (_norm_source_file(node["source_file"]), str(node.get("label", "")).strip())
-        for node in new_nodes
-        if isinstance(node, dict) and isinstance(node.get("source_file"), str) and node.get("label")
-    }
+    new_ast_loc_nodes: set[tuple[str, str]] = set()
+    ast_loc_collisions: set[tuple[str, str]] = set()
+    for node in new_nodes:
+        # Match build_from_json's strict canonical-AST check (#2334).
+        if not isinstance(node, dict) or node.get("_origin") != "ast":
+            continue
+        sf = node.get("source_file")
+        if not isinstance(sf, str) or not sf:
+            continue
+        lbl = str(node.get("label", "")).strip()
+        if not lbl:
+            continue
+        norm_sf = _norm_source_file(sf)
+        if not norm_sf:
+            continue
+        key = (norm_sf, lbl)
+        if key in new_ast_loc_nodes:
+            ast_loc_collisions.add(key)
+        new_ast_loc_nodes.add(key)
     # cluster-only and build_from_json rewrite a legacy semantic id to its
     # canonical stem, then fold a bare doc id into its `_doc` twin. That id
     # is the same node. A missing rationale id has no such successor.
@@ -125,8 +139,10 @@ def _lost_saved_semantic_nodes(
         sf_val = node.get("source_file")
         source = _norm_source_file(sf_val) if isinstance(sf_val, str) else None
         lbl = str(node.get("label", "")).strip()
-        if source and lbl and (source, lbl) in new_loc_nodes:
-            continue
+        if source and lbl:
+            loc_key = (source, lbl)
+            if loc_key in new_ast_loc_nodes and loc_key not in ast_loc_collisions:
+                continue
         if source and source in deleted:
             continue
         lost.append(node)
