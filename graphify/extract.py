@@ -2228,9 +2228,8 @@ def extract_js(path: Path) -> dict:
             source = _read_source_bytes(path)
             working = _normalize_ts_export_type_star(source) or source
             normalized = _normalize_ts_import_types(working, tsx=suffix == ".tsx")
-            source_override = normalized if normalized is not None else (
-                working if working is not source else None
-            )
+            working = normalized if normalized is not None else working
+            source_override = working if working is not source else None
         except OSError:
             pass
     result = _extract_generic(path, config, source_override=source_override)
