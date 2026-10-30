@@ -148,15 +148,15 @@ def test_cli_path_surfaces_weakest_tag(monkeypatch, tmp_path, capsys):
         "graphify", "path", "report_exporter_run", "report_pdfreport_build", "--graph", str(p)])
     mainmod.main()
     out = capsys.readouterr().out
-    assert "--dispatches_to [AMBIGUOUS/INFERRED]-->" in out
-    assert "--calls [INFERRED]-->" in out
+    assert "--dispatches_to [AMBIGUOUS 0.40/INFERRED 0.75]-->" in out
+    assert "--calls [INFERRED 0.85]-->" in out
 
 
 def test_mcp_path_surfaces_weakest_tag(tmp_path):
     _, G = _path_graph(tmp_path)
     out = _shortest_path_text(G, {"source": "report_exporter_run",
                                   "target": "report_pdfreport_build"})
-    assert "--dispatches_to [AMBIGUOUS/INFERRED]-->" in out
+    assert "--dispatches_to [AMBIGUOUS 0.40/INFERRED 0.75]-->" in out
 
 
 def test_report_cs_extraction_keeps_semantic_duplicate(tmp_path):

@@ -99,7 +99,7 @@ def test_type_member_endpoint_routes_to_the_method(monkeypatch, capsys, report_g
     code, out, err = _path(monkeypatch, capsys, report_graph, source, "PdfReport.Build")
     assert code == 0, err
     assert "Shortest path (2 hops):" in out
-    assert ".Run() --calls [INFERRED]--> .Build() --dispatches_to [INFERRED]--> .Build()" in out
+    assert ".Run() --calls [INFERRED 0.85]--> .Build() --dispatches_to [INFERRED 0.75]--> .Build()" in out
     assert "contains" not in out
 
 
