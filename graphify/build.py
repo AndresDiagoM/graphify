@@ -189,6 +189,66 @@ _GENERIC_RELATIONS: frozenset[str] = frozenset({"references", "uses", "mentions"
 # `calls` is not ranked here.
 _STRUCTURAL_MEMBER_RELATIONS: frozenset[str] = frozenset({"method", "contains"})
 _CONFIDENCE_RANK: dict[str, int] = {"EXTRACTED": 3, "INFERRED": 2, "AMBIGUOUS": 1}
+# The fields that say how sure the graph is of an edge and where that came from.
+# A same-relation collision keeps one edge; the loser's copy of these fields is
+# folded into the winner's `also_seen` list instead of being discarded (#4881).
+_EVIDENCE_KEYS: tuple[str, ...] = ("confidence", "confidence_score", "source_file", "source_location")
+
+
+def _evidence(attrs: dict) -> dict:
+    """The provenance fields of one edge (or ``also_seen`` entry), scalars only."""
+    out: dict = {}
+    for key in _EVIDENCE_KEYS:
+        val = attrs.get(key)
+        if isinstance(val, bool) or val is None or val == "":
+            continue
+        if key == "confidence_score":
+            try:
+                val = float(val)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(val):
+                continue
+        elif not isinstance(val, (str, int, float)):
+            continue
+        out[key] = val
+    return out
+
+
+def _evidence_sort_key(ev: dict) -> tuple:
+    # Weakest first: lowest confidence tier, then lowest score.
+    score = ev.get("confidence_score")
+    return (
+        _CONFIDENCE_RANK.get(str(ev.get("confidence", "")), 0),
+        score is None,
+        score if score is not None else 0.0,
+        str(ev.get("source_file", "")),
+        str(ev.get("source_location", "")),
+    )
+
+
+def edge_evidence(d: dict) -> list[dict]:
+    """Every provenance record an edge carries: its own, then each ``also_seen``."""
+    also = d.get("also_seen")
+    return [d, *(a for a in also if isinstance(a, dict))] if isinstance(also, list) else [d]
+
+
+def _fold_also_seen(winner: dict, loser: dict) -> None:
+    """Record ``loser``'s provenance on ``winner`` when the two collapse (#4881).
+
+    Entries that repeat the winner's own provenance, or each other, are dropped,
+    so re-feeding a written graph.json through the build is idempotent.
+    """
+    own = _evidence(winner)
+    kept: list[dict] = []
+    for raw in (*edge_evidence(winner)[1:], loser, *edge_evidence(loser)[1:]):
+        ev = _evidence(raw)
+        if ev and not ev.items() <= own.items() and ev not in kept:
+            kept.append(ev)
+    if kept:
+        winner["also_seen"] = sorted(kept, key=_evidence_sort_key)
+    else:
+        winner.pop("also_seen", None)
 
 # Import-family relations whose target may legitimately be a module OUTSIDE the
 # graph (stdlib, a third-party dependency, another repo). Historically the edge
@@ -1782,6 +1842,8 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
                 if not math.isfinite(_num_val) or _num_val < 0:
                     _num_val = 1.0
                 attrs[_num_key] = _num_val
+        if "also_seen" in attrs:
+            _fold_also_seen(attrs, {})
         # Backfill source_file from the endpoint nodes (every node carries one).
         # Semantic/LLM edges occasionally omit it, which downstream validation
         # flags and leaves query results with no file reference (#1279).
@@ -1910,9 +1972,11 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
                 existing_rank = _CONFIDENCE_RANK.get(existing_conf, 0)
                 incoming_rank = _CONFIDENCE_RANK.get(incoming_conf, 0)
                 if existing_rank > incoming_rank:
+                    _fold_also_seen(existing_attrs, attrs)
                     continue
                 if existing_rank == incoming_rank:
                     if existing_attrs.get("source_location") and not attrs.get("source_location"):
+                        _fold_also_seen(existing_attrs, attrs)
                         continue
                     existing_score = existing_attrs.get("confidence_score")
                     incoming_score = attrs.get("confidence_score")
@@ -1921,7 +1985,14 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
                         and incoming_score is not None
                         and existing_score > incoming_score
                     ):
+                        _fold_also_seen(existing_attrs, attrs)
                         continue
+                _fold_also_seen(attrs, existing_attrs)
+                # add_edge merges into the stored dict: a field only the loser
+                # carried (its score, its line) would otherwise stay on the winner.
+                for _key in (*_EVIDENCE_KEYS, "also_seen"):
+                    if _key not in attrs:
+                        existing_attrs.pop(_key, None)
         G.add_edge(src, tgt, **attrs)
     if dropped_schema_edges:
         print(

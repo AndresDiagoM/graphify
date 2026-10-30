@@ -14,7 +14,7 @@ from typing import NamedTuple
 import networkx as nx
 from networkx.readwrite import json_graph
 from graphify.security import sanitize_label, check_graph_file_size_cap, _CONTROL_CHAR_RE
-from graphify.build import edge_datas, has_parallel_links
+from graphify.build import edge_datas, edge_evidence, has_parallel_links
 from graphify.paths import default_graph_json as _default_graph_json
 
 try:
@@ -2141,7 +2141,7 @@ def _shortest_path_text(G: nx.Graph, arguments: dict) -> str:
         forward = bool(fwd)
         rels = sorted({d.get("relation") for d in datas if d.get("relation")})
         rel = "/".join(rels) if rels else "related"
-        confs = sorted({d.get("confidence") for d in datas if d.get("confidence")})
+        confs = sorted({e["confidence"] for d in datas for e in edge_evidence(d) if e.get("confidence")})
         conf_str = f" [{'/'.join(confs)}]" if confs else ""
         if i == 0:
             segments.append(G.nodes[u].get("label", u))

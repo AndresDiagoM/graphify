@@ -2097,7 +2097,7 @@ def dispatch_command(cmd: str) -> None:
             sys.exit(0)
         hops = len(path_nodes) - 1
         segments = []
-        from graphify.build import edge_datas
+        from graphify.build import edge_datas, edge_evidence
         for i in range(len(path_nodes) - 1):
             u, v = path_nodes[i], path_nodes[i + 1]
             # Report the ACTUAL stored relation(s) of the traversed pair and
@@ -2119,7 +2119,7 @@ def dispatch_command(cmd: str) -> None:
             forward = bool(fwd)
             rels = sorted({d.get("relation") for d in datas if d.get("relation")})
             rel = "/".join(rels) if rels else "related"
-            confs = sorted({d.get("confidence") for d in datas if d.get("confidence")})
+            confs = sorted({e["confidence"] for d in datas for e in edge_evidence(d) if e.get("confidence")})
             conf_str = f" [{'/'.join(confs)}]" if confs else ""
             if i == 0:
                 segments.append(G.nodes[u].get("label", u))
