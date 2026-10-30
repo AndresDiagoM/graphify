@@ -2259,16 +2259,14 @@ def _path_search_graph(G: nx.Graph, undirected: bool) -> nx.Graph:
     return H
 
 
-def _path_confidence_line(hop_datas: list[list[dict]]) -> str:
-    """Overall confidence of a path: its weakest hop (#4885).
+def _path_weakest(hop_datas: list[list[dict]]):
+    """The weakest hop of a path, or None when no hop carries confidence.
 
-    A path is only as sure as its least certain hop. Each hop is ranked by
-    the weakest evidence it carries (`_CONFIDENCE_RANK`, then the lowest
-    `confidence_score`; a missing score never counts as weaker than a present
-    one), and the first weakest hop is named. A hop with no recognised
-    confidence tag ranks below AMBIGUOUS and makes the whole path unknown.
-    EXTRACTED is 1.0 by definition, so its score is neither ranked nor
-    printed, matching the per-hop tags.
+    Each hop is ranked by the weakest evidence it carries (`_CONFIDENCE_RANK`,
+    then the lowest `confidence_score`; a missing score never counts as weaker
+    than a present one). EXTRACTED is 1.0 by definition, so its score is neither
+    ranked nor printed, matching the per-hop tags. Returns
+    `(key, hop, rel, conf, score)` where `key` sorts weakest-first.
     """
     weakest = None
     for hop, datas in enumerate(hop_datas, 1):
@@ -2287,6 +2285,17 @@ def _path_confidence_line(hop_datas: list[list[dict]]) -> str:
                 key = (rank, score is None, score or 0.0, hop)
                 if weakest is None or key < weakest[0]:
                     weakest = (key, hop, d.get("relation") or "related", conf if rank else None, score)
+    return weakest
+
+
+def _path_confidence_line(hop_datas: list[list[dict]]) -> str:
+    """Overall confidence of a path: its weakest hop (#4885).
+
+    A path is only as sure as its least certain hop (see `_path_weakest`). A hop
+    with no recognised confidence tag ranks below AMBIGUOUS and makes the whole
+    path unknown.
+    """
+    weakest = _path_weakest(hop_datas)
     if weakest is None:
         return ""
     _, hop, rel, conf, score = weakest
@@ -2294,6 +2303,55 @@ def _path_confidence_line(hop_datas: list[list[dict]]) -> str:
         return f"Path confidence: unknown (hop {hop}: {rel} has no confidence tag)"
     score_str = f", score {score:g}" if score is not None else ""
     return f"Path confidence: {conf} (weakest hop {hop}: {rel}{score_str})"
+
+
+# Enough equal-length routes to find the weakest among them without letting a
+# pathological graph enumerate an exponential number of shortest paths (#4881).
+_MAX_SHORTEST_PATHS = 256
+
+
+def _path_hop_datas(G: nx.Graph, path_nodes: list[str]) -> list[list[dict]]:
+    """Per-hop edge-data lists for a node path, honouring `_src` direction
+    markers (#2309) the same way the path renderer does."""
+    hop_datas: list[list[dict]] = []
+    for i in range(len(path_nodes) - 1):
+        u, v = path_nodes[i], path_nodes[i + 1]
+        fwd, bwd = [], []
+        for a, b in ((u, v), (v, u)):
+            if G.has_edge(a, b):
+                for d in edge_datas(G, a, b):
+                    (fwd if d.get("_src", a) == u else bwd).append(d)
+        hop_datas.append(fwd or bwd)
+    return hop_datas
+
+
+def _path_confidence_key(hop_datas: list[list[dict]]):
+    """Sortable, weakest-first key for a whole path. A path that carries no
+    confidence evidence at all is 'unknown' and sorts below any tagged path."""
+    weakest = _path_weakest(hop_datas)
+    return weakest[0] if weakest is not None else (-1, True, 0.0, 0)
+
+
+def _weakest_shortest_path(search_graph: nx.Graph, G: nx.Graph, src_nid: str, tgt_nid: str):
+    """Among all shortest paths `src_nid` -> `tgt_nid`, the most conservative one.
+
+    A path is only as sure as its weakest hop, so when several routes tie on
+    length the reported confidence should reflect the weakest of them, not an
+    arbitrary route networkx happens to return first (#4881). Enumeration is
+    bounded by `_MAX_SHORTEST_PATHS`. Raises `nx.NetworkXNoPath` /
+    `nx.NodeNotFound` exactly like `nx.shortest_path`, so callers keep their
+    existing error handling. Returns `(path_nodes, n_routes, capped)`.
+    """
+    paths: list[list[str]] = []
+    for p in nx.all_shortest_paths(search_graph, src_nid, tgt_nid):
+        paths.append(p)
+        if len(paths) > _MAX_SHORTEST_PATHS:
+            break
+    capped = len(paths) > _MAX_SHORTEST_PATHS
+    if capped:
+        paths = paths[:_MAX_SHORTEST_PATHS]
+    chosen = min(paths, key=lambda p: _path_confidence_key(_path_hop_datas(G, p)))
+    return chosen, len(paths), capped
 
 
 def _shortest_path_text(G: nx.Graph, arguments: dict) -> str:
@@ -2338,7 +2396,9 @@ def _shortest_path_text(G: nx.Graph, arguments: dict) -> str:
     max_hops = int(arguments.get("max_hops", 8))
     undirected = bool(arguments.get("undirected", False))
     try:
-        path_nodes = nx.shortest_path(_path_search_graph(G, undirected), src_nid, tgt_nid)
+        path_nodes, n_routes, routes_capped = _weakest_shortest_path(
+            _path_search_graph(G, undirected), G, src_nid, tgt_nid
+        )
     except (nx.NetworkXNoPath, nx.NodeNotFound):
         src_label = G.nodes[src_nid].get("label", src_nid)
         tgt_label = G.nodes[tgt_nid].get("label", tgt_nid)
@@ -2380,6 +2440,10 @@ def _shortest_path_text(G: nx.Graph, arguments: dict) -> str:
             segments.append(f"<--{rel}{conf_str}-- {G.nodes[v].get('label', v)}")
     prefix = ("\n".join(warnings) + "\n") if warnings else ""
     summary = _path_confidence_line(hop_datas)
+    if n_routes > 1 and summary:
+        # Several routes tie on length; the confidence shown is the weakest of
+        # them (#4881), so it never overstates how sure the connection is.
+        summary += f" (weakest of {'256+' if routes_capped else n_routes} equal-length routes)"
     return (
         prefix + f"Shortest path ({hops} hops):\n  " + " ".join(segments)
         + (f"\n{summary}" if summary else "")

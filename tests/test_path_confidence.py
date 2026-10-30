@@ -119,3 +119,45 @@ def test_parallel_edges_and_also_seen_count_toward_their_hop():
 def test_hop_without_confidence_makes_path_unknown():
     hops = [[_e("calls", "EXTRACTED")], [_e("calls")]]
     assert _path_confidence_line(hops) == "Path confidence: unknown (hop 2: calls has no confidence tag)"
+
+
+def _two_route_graph():
+    """Two equal-length (2-hop) routes A -> C: a strong one via B1 (all
+    EXTRACTED) and a weak one via B2 (an AMBIGUOUS hop). #4881 second half:
+    the reported confidence must reflect the weakest route, not whichever one
+    networkx returns first."""
+    def n(nid):
+        return {"id": nid, "label": nid, "file_type": "code", "source_file": "m.py"}
+    return build_from_json({
+        "nodes": [n("A"), n("B1"), n("C"), n("B2")],
+        "edges": [
+            {"source": "A", "target": "B1", "relation": "calls",
+             "confidence": "EXTRACTED", "source_file": "m.py", "source_location": "L1"},
+            {"source": "B1", "target": "C", "relation": "calls",
+             "confidence": "EXTRACTED", "source_file": "m.py", "source_location": "L2"},
+            {"source": "A", "target": "B2", "relation": "calls",
+             "confidence": "EXTRACTED", "source_file": "m.py", "source_location": "L3"},
+            {"source": "B2", "target": "C", "relation": "dispatches_to",
+             "confidence": "AMBIGUOUS", "confidence_score": 0.3,
+             "source_file": "m.py", "source_location": "L4"},
+        ],
+        "hyperedges": [],
+    })
+
+
+def test_multiple_routes_report_the_weakest_route():
+    """Among equal-length routes, the weakest route's confidence is surfaced."""
+    G = _two_route_graph()
+    out = _shortest_path_text(G, {"source": "A", "target": "C"})
+    last = out.splitlines()[-1]
+    # Must report the AMBIGUOUS (weak) route, not the EXTRACTED (strong) one,
+    # and say it chose the weakest of the equal-length routes.
+    assert "AMBIGUOUS" in last, out
+    assert "weakest of 2 equal-length routes" in last, out
+
+
+def test_single_route_has_no_equal_length_note():
+    """A unique shortest path must not carry the multi-route suffix."""
+    G = _report_graph()
+    out = _shortest_path_text(G, {"source": "report_exporter_run", "target": "report_pdfreport_build"})
+    assert "equal-length routes" not in out, out
