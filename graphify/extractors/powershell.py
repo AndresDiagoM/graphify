@@ -301,11 +301,16 @@ def extract_powershell(path: Path) -> dict:
                             module_name = raw.split(".")[-1]
                         else:
                             # `module`/`assembly` name a file or library
-                            # (Helpers.psm1, System.Data.dll): the dot there is
-                            # an extension, not a namespace separator, so
-                            # splitting on it like the namespace form returned
-                            # the extension itself instead of the name.
-                            module_name = re.sub(r'\.[^.]+$', '', raw).split('/')[-1].split('\\')[-1]
+                            # (Helpers.psm1, System.Data.dll): a trailing module
+                            # or assembly extension is not a namespace separator,
+                            # so splitting on it like the namespace form returned
+                            # the extension itself instead of the name. Strip only
+                            # a known extension, so a dotted module name with no
+                            # file extension (Az.Accounts) keeps its full name
+                            # rather than losing its last segment.
+                            module_name = re.sub(
+                                r'\.(psm1|psd1|ps1|dll|exe)$', '', raw, flags=re.IGNORECASE
+                            ).split('/')[-1].split('\\')[-1]
                         if module_name:
                             add_edge(file_nid, _make_id(module_name), "imports_from",
                                      node.start_point[0] + 1)

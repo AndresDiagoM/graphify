@@ -3305,6 +3305,24 @@ def test_powershell_using_namespace_keeps_last_segment(tmp_path):
     )
 
 
+def test_powershell_using_module_without_extension_keeps_full_name(tmp_path):
+    """A dotted module name with no file extension must keep its full name.
+
+    Only a real module/assembly extension (.psm1/.psd1/.ps1/.dll/.exe) is a file
+    suffix; a dotted name like `Az.Accounts` is the module name itself, so the
+    last segment must not be stripped (it would otherwise resolve to 'az')."""
+    f = tmp_path / "main.ps1"
+    f.write_text("using module Az.Accounts\n")
+    r = extract_powershell(f)
+    targets = {e["target"] for e in r["edges"] if e["relation"] == "imports_from"}
+    assert not any(t == "az" for t in targets), (
+        f"using-module dropped the dotted name's last segment; targets={targets}"
+    )
+    assert any("accounts" in t for t in targets), (
+        f"using-module lost the Az.Accounts name; targets={targets}"
+    )
+
+
 # ── PowerShell manifest (.psd1) (#1331) ──────────────────────────────────────
 
 def test_powershell_psd1_dispatched():
