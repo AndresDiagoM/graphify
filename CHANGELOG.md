@@ -2,6 +2,13 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/Graphify-Labs/graphify/releases)
 
+## 0.9.98 (2026-10-30)
+
+- Fix: **build** when duplicate same-relation edges collapse, the losing (weaker-confidence) copy's provenance is kept in an `also_seen` list on the surviving edge instead of being discarded, so the weaker evidence is not silently lost; the field is serialized to graph.json and is idempotent across rebuilds (#4881, #4891, thanks @SyedFahad7).
+- Fix: **csharp** a C# method node is labelled with its owning type (`MyClass.Method`) instead of a bare `Method`, so same-named methods across types are distinguishable; node ids and edges are unchanged (display label only) (#4883, #4889, thanks @SyedFahad7).
+- Feat: **path** `graphify path` and the MCP shortest-path output report the overall path confidence as the weakest hop (lowest confidence tier, then lowest score), with a summary line naming that hop (#4885, #4892, thanks @SyedFahad7).
+- Fix: **path** an endpoint written `Type.Member` resolves to the member node, not the containing type, so `graphify path "Exporter.Run" "PdfReport.Build"` finds the real call route; exact names and file names still win first, and a `Type.Member` whose member does not exist fails closed (#4884, #4893, thanks @SyedFahad7).
+
 ## 0.9.97 (2026-10-27)
 
 - Security: **rationale redaction** credential redaction for rationale labels moves to a single pre-cache choke point (`_redact_rationale_labels` inside `_safe_extract`), so no extractor can skip it, and it now covers more leak shapes: URL userinfo with an empty user or with `/`/`@` in the password, PEM private-key bodies, tokens glued to surrounding text by `_` (for example `ghp_...`), Slack `xoxe-` refresh tokens, short JWTs, and Common Lisp docstrings that previously built labels without redacting. Benign strings (hashes, `sk-` prose, URLs without userinfo) are left alone (#4647, thanks @0xkaushik-ai).
