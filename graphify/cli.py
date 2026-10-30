@@ -4947,6 +4947,8 @@ def dispatch_command(cmd: str) -> None:
             # gets this), so apply it directly on the merged node list.
             from graphify.build import disambiguate_file_labels_in_nodes as _disamb_labels
             _disamb_labels(merged["nodes"])
+            from graphify.build import qualify_csharp_method_labels_in_nodes as _qualify_cs_methods
+            _qualify_cs_methods(merged["nodes"], merged["edges"])
             # Same endpoint rules as build_from_json (#2873): an import of an
             # external module gets a typed stub node, and any other edge without
             # two declared endpoints is dropped instead of shipping a phantom.

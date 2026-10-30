@@ -82,8 +82,12 @@ def _is_file_node(G: nx.Graph, node_id: str) -> bool:
         from graphify.build import _is_file_node_label
         if _is_file_node_label(label, source_file):
             return True
-    # Method stub: AST extractor labels methods as '.method_name()'
+    # Method stub: AST extractor labels methods as '.method_name()'; C# methods
+    # carry their owner for display ('Owner.method_name()', #4883).
     if label.startswith(".") and label.endswith("()"):
+        return True
+    from graphify.extractors.csharp import bare_csharp_method_label
+    if bare_csharp_method_label(label, source_file) is not None:
         return True
     # Module-level function stub: labeled 'function_name()' - only has a contains edge
     # These are real functions but structurally isolated by definition; not a gap worth flagging

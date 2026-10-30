@@ -815,6 +815,39 @@ def disambiguate_file_labels_in_nodes(nodes: "list") -> None:
         nodes[i]["label"] = new_label
 
 
+def _qualify_csharp_method_labels(G: "nx.Graph") -> None:
+    """Give C# method nodes an ``Owner.Name()`` display label (#4883). Ids and
+    edges are never changed, and an undirected graph's owner side is read from
+    the edge's recorded ``_src``/``_tgt``. Idempotent."""
+    from graphify.extractors.csharp import csharp_method_label_reassignments
+    method_edges = [
+        (data.get("_src", u), data.get("_tgt", v))
+        for u, v, data in G.edges(data=True)
+        if data.get("relation") == "method"
+    ]
+    for nid, new_label in csharp_method_label_reassignments(
+        G.nodes(data=True), method_edges
+    ).items():
+        G.nodes[nid]["label"] = new_label
+
+
+def qualify_csharp_method_labels_in_nodes(nodes: "list", edges: "list") -> None:
+    """Raw node/edge-list form of :func:`_qualify_csharp_method_labels`, in
+    place, for the --no-cluster writers that bypass build_from_json (#4883)."""
+    from graphify.extractors.csharp import csharp_method_label_reassignments
+    method_edges = [
+        (e.get("source"), e.get("target"))
+        for e in edges
+        if isinstance(e, dict) and e.get("relation") == "method"
+    ]
+    reassigned = csharp_method_label_reassignments(
+        ((n.get("id"), n) for n in nodes if isinstance(n, dict)), method_edges
+    )
+    for n in nodes:
+        if isinstance(n, dict) and n.get("id") in reassigned:
+            n["label"] = reassigned[n["id"]]
+
+
 def _infer_merge_root(graph_path: Path) -> str | None:
     """Best-effort scan root for relativizing paths in build_merge when the caller
     passes no ``root`` (#1571).
@@ -1076,6 +1109,7 @@ def _alias_index(nodes: "Iterable[tuple[str, dict]]") -> dict[str, str]:
     endpoint the same way (#4670).
     """
     from graphify.extractors.base import _file_stem as _fs
+    from graphify.extractors.csharp import bare_csharp_method_label
     from graphify.extractors.resolution import _PYTHON_STDLIB_MODULE_NAMES
 
     alias_candidates: dict[str, set[str]] = {}
@@ -1109,8 +1143,10 @@ def _alias_index(nodes: "Iterable[tuple[str, dict]]") -> dict[str, str]:
             alias = old_stem + suffix
             alias_candidates.setdefault(_normalize_id(alias), set()).add(nid)
             alias_candidates.setdefault(alias, set()).add(nid)
-        if attrs.get("_origin") == "ast" and str(attrs.get("label", "")).startswith("."):
-            m_name = make_id(str(attrs.get("label", "")).strip().removeprefix(".").removesuffix("()"))
+        m_label = str(attrs.get("label", ""))
+        m_label = bare_csharp_method_label(m_label.strip(), sf) or m_label
+        if attrs.get("_origin") == "ast" and m_label.startswith("."):
+            m_name = make_id(m_label.strip().removeprefix(".").removesuffix("()"))
             m_alias = f"{new_stem}_{m_name}"
             if _normalize_id(nid) != _normalize_id(m_alias):
                 alias_candidates.setdefault(_normalize_id(m_alias), set()).add(nid)
@@ -1515,6 +1551,7 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     _noloc_nodes: dict[tuple[str, str], str] = {}  # (source_file, label) -> ghost node id
     _ast_file_nodes: list[tuple[str, str]] = []  # (node_id, source_file) for AST file-self nodes (#3344)
     _ast_method_nodes: dict[tuple[str, str], list[str]] = {}  # (source_file, norm_method) -> [ast_nid, ...]
+    from graphify.extractors.csharp import bare_csharp_method_label
 
     # Pass 1: collect canonical nodes — AST-origin nodes take precedence over LLM nodes.
     # When 2+ AST nodes share a key (same-named symbols in same-named files across
@@ -1576,8 +1613,9 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
                 # a dotfile label like `.env` is never mistaken for a method
                 # (#3705 follow-up). Key on the normalized name for parity with
                 # the alias index below and the rest of the dedup passes.
-                if label.startswith(".") and label.endswith("()"):
-                    m_name = make_id(label.removeprefix(".").removesuffix("()"))
+                m_label = bare_csharp_method_label(label, sf) or label
+                if m_label.startswith(".") and m_label.endswith("()"):
+                    m_name = make_id(m_label.removeprefix(".").removesuffix("()"))
                     _ast_method_nodes.setdefault((sf, m_name), []).append(nid)
             else:
                 # First non-AST node for this (file, label) wins as canonical; a
@@ -1989,6 +2027,9 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     # directory-qualified display label so lookup/discovery can disambiguate
     # them (#2032). Labels only — ids and edges are untouched.
     _disambiguate_file_node_labels(G)
+    # Also last, after the method-ghost passes above: C# methods display with
+    # their owning type (#4883).
+    _qualify_csharp_method_labels(G)
     return G
 
 
