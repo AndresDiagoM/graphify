@@ -5,6 +5,13 @@ Full release notes with details on each version: [GitHub Releases](https://githu
 ## 0.9.99 (unreleased)
 
 - Feat: **path** when several routes tie on length, `graphify path` and the MCP `shortest_path` tool report the most conservative one: among all shortest paths, the route whose weakest hop is weakest is chosen, and the summary notes it was the weakest of N equal-length routes. Previously an arbitrary equal-length route was returned, so the confidence could overstate how sure the connection is. This is the second half of #4881 (the first half, keeping a collapsed edge's weaker evidence in `also_seen`, shipped in 0.9.98 via #4891, thanks @SyedFahad7).
+- Fix: **go** a call in a package-level `var` initialiser (including inside a func-literal closure, the common swappable-hook pattern) is credited to the file node instead of being dropped (#2360, #4867, thanks @nothariharan).
+- Fix: **go** a method value passed as a function argument (`Wrap(s.Health)`) is linked as an `indirect_call`, bringing Go to parity with Python/JS for callback-by-method-value; conservatively guarded against field-access false positives (#1566, #4868, thanks @nothariharan).
+- Fix: **go** a receiver's field whose struct is declared in a sibling file of the same package is typed, so its member calls resolve across the usual struct-here-methods-there Go layout, and the field types persist across incremental rebuilds (#3368, #4866, thanks @nothariharan).
+- Fix: **python** `module.func` values listed in a dispatch table (`{"a": mod.func_a}`, including nested collections) resolve to the referenced functions as `indirect_call`s instead of being dropped; non-callable, class, and local-receiver values are left alone (#1566, #4773, thanks @nothariharan).
+- Fix: **install** gemini gets its own global skill dir (`~/.gemini/skills/graphify`) on Windows instead of colliding with the `agents` platform's dir; a pre-existing `agents` skill is noted, not deleted (#2800, #4770, thanks @nothariharan).
+- Fix: **install** the global OpenCode plugin is written to `~/.config/opencode` (co-located with the global skill) instead of the current directory, with install/uninstall/refresh kept symmetric and legacy locations still cleaned up (#3398, #4771, thanks @nothariharan).
+- Docs: **skill** the "Follow these steps in order. Do not skip steps." instruction is reworded to "unless the fast path above applies," resolving the contradiction with the existing-graph fast path across all generated hosts (#4061, #4721, thanks @nothariharan).
 
 ## 0.9.98 (2026-10-30)
 
