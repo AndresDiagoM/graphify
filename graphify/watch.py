@@ -2547,9 +2547,11 @@ def _rebuild_code(
                 dedupe_nodes as _dedupe_nodes,
                 disambiguate_file_labels_in_nodes as _disamb_labels,
                 finalize_raw_graph_endpoints as _finalize_raw_graph_endpoints,
+                qualify_csharp_method_labels_in_nodes as _qualify_cs_methods,
             )
             raw_nodes = _dedupe_nodes(result.get("nodes", []))
             _disamb_labels(raw_nodes)
+            _qualify_cs_methods(raw_nodes, result.get("edges", []))
             from graphify.extract import RUN_ONLY_EXTRACTION_KEYS as _RUN_ONLY_KEYS
             candidate_graph_data = {
                 **{
