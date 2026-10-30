@@ -12,6 +12,7 @@ Full release notes with details on each version: [GitHub Releases](https://githu
 - Fix: **install** gemini gets its own global skill dir (`~/.gemini/skills/graphify`) on Windows instead of colliding with the `agents` platform's dir; a pre-existing `agents` skill is noted, not deleted (#2800, #4770, thanks @nothariharan).
 - Fix: **install** the global OpenCode plugin is written to `~/.config/opencode` (co-located with the global skill) instead of the current directory, with install/uninstall/refresh kept symmetric and legacy locations still cleaned up (#3398, #4771, thanks @nothariharan).
 - Docs: **skill** the "Follow these steps in order. Do not skip steps." instruction is reworded to "unless the fast path above applies," resolving the contradiction with the existing-graph fast path across all generated hosts (#4061, #4721, thanks @nothariharan).
+- Feat: **serve** `path`, `explain` and `neighbors`/`get_neighbors` print an edge's stored `confidence_score` alongside its tag (`[INFERRED 0.75]`); EXTRACTED stays bare (1.0 by definition) and a missing or non-finite score keeps the bare tag. Composes with the weakest-hop path summary and the `also_seen` evidence tags (#4882, #4888, thanks @SyedFahad7).
 
 ## 0.9.98 (2026-10-30)
 
