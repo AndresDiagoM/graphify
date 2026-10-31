@@ -10,6 +10,11 @@ Full release notes with details on each version: [GitHub Releases](https://githu
 - Fix: **analyze** on a code-only graph the isolated-node question reason says "possible missing edges" rather than referencing documentation gaps that cannot apply (#4887, thanks @oleksii-tumanov).
 - Perf: **resolve** reference edges are indexed by source once, so JS/TS import resolution no longer re-walks every edge per import (output unchanged) (#4909, #4913, thanks @Deepjyoti-Sarmah).
 - Docs: **skill** the skill now says when a graph is worth building, across all generated hosts, while preserving the "if the user invoked /graphify, do it as asked" invariant (#4829, #4906, thanks @TanmayShah29).
+- Fix: **deps** the `video` extra caps PyAV below 19 (`av>=11,<19`), because PyAV 19 removed the `metadata_errors` argument that faster-whisper passes unconditionally when opening audio; without the cap a fresh install on Python 3.12+ failed to transcribe (#4842, thanks @SyedFahad7).
+- Fix: **r** `setClass`/`setRefClass` S4/R5 inheritance declared with `contains=` now emits an inherits edge (previously only R6Class's `inherit=` was recognised) (#4902, thanks @ayushcodes10).
+- Fix: **elixir** a bare function call resolves to a function in the caller's own module before other modules, instead of binding to the last-walked same-named definition (#4900, thanks @ayushcodes10).
+- Fix: **dart** a mixin `on A, B` clause resolves every superclass constraint, not just the first (#4899, thanks @ayushcodes10).
+- Fix: **fortran** a derived type's `extends(base)` emits an inherits edge, bringing Fortran in line with the other OOP extractors (#4897, thanks @ayushcodes10).
 
 ## 0.9.99 (2026-10-30)
 
