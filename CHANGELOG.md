@@ -2,6 +2,15 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/Graphify-Labs/graphify/releases)
 
+## 0.9.100 (unreleased)
+
+- Fix: **ids** a type and a function whose names differ only in case (`Foo` the class, `foo` the function) get distinct node ids instead of colliding (which dropped one node and minted a bogus self-loop) (#4904, #4908, thanks @bercedev).
+- Fix: **php** a `Scope::MEMBER` access in a class-level initializer (a const value, a property default, or a parameter/promoted-constructor default) emits a `references_constant` edge; `self::`/`static::`/`parent::` are skipped and unknown scopes mint no stub (#4648, #4895, thanks @Jitendarmahara).
+- Fix: **hooks** `git rev-parse` output is decoded as UTF-8, so a linked worktree under a non-ASCII path resolves correctly on Windows instead of mojibake (#4903, thanks @LukeTheoJohnson).
+- Fix: **analyze** on a code-only graph the isolated-node question reason says "possible missing edges" rather than referencing documentation gaps that cannot apply (#4887, thanks @oleksii-tumanov).
+- Perf: **resolve** reference edges are indexed by source once, so JS/TS import resolution no longer re-walks every edge per import (output unchanged) (#4909, #4913, thanks @Deepjyoti-Sarmah).
+- Docs: **skill** the skill now says when a graph is worth building, across all generated hosts, while preserving the "if the user invoked /graphify, do it as asked" invariant (#4829, #4906, thanks @TanmayShah29).
+
 ## 0.9.99 (2026-10-30)
 
 - Feat: **path** when several routes tie on length, `graphify path` and the MCP `shortest_path` tool report the most conservative one: among all shortest paths, the route whose weakest hop is weakest is chosen, and the summary notes it was the weakest of N equal-length routes. Previously an arbitrary equal-length route was returned, so the confidence could overstate how sure the connection is. This is the second half of #4881 (the first half, keeping a collapsed edge's weaker evidence in `also_seen`, shipped in 0.9.98 via #4891, thanks @SyedFahad7).
