@@ -15,6 +15,16 @@ Full release notes with details on each version: [GitHub Releases](https://githu
 - Fix: **elixir** a bare function call resolves to a function in the caller's own module before other modules, instead of binding to the last-walked same-named definition (#4900, thanks @ayushcodes10).
 - Fix: **dart** a mixin `on A, B` clause resolves every superclass constraint, not just the first (#4899, thanks @ayushcodes10).
 - Fix: **fortran** a derived type's `extends(base)` emits an inherits edge, bringing Fortran in line with the other OOP extractors (#4897, thanks @ayushcodes10).
+- Fix: **scala** an `extension (x: T) def m` is scoped to its receiver type `T` (a `method` edge to `T`) instead of leaking to file scope (#2044, #4856, thanks @divakantpandey).
+- Fix: **terraform** a node carries its original scope so ids stay stable when a cached project directory is moved, instead of re-deriving the scope from the new path (#4858, #4861, thanks @yUm1k4).
+- Fix: **extract (JVM)** Java and Kotlin imports, `extends`/`implements` and member calls resolve across files and across the two languages when a written FQN names exactly one sourced type (#4874, #4879, thanks @Deepjyoti-Sarmah).
+- Fix: **export** a path/explain/wiki rendering lists every parallel relation between two nodes (via `edge_datas`), and a raw `--no-cluster` write marks the graph `multigraph` so parallel edges survive reload (#4794, thanks @ensell-yes).
+- Fix: **export** a partial or failed backup is reported as no backup and retried on the next run, instead of being recorded as a false success (#3769, #4834, thanks @barlowa124).
+- Fix: **affected** `graphify affected` (and `query --seed`) resolve the same `path::Symbol` and dotted reference forms `explain` accepts, reusing explain's resolver, and exit non-zero (3 ambiguous / 4 not-found) on a seed that does not resolve (#4792, #4797, thanks @dupeisen).
+- Fix: **install** `graphify uninstall` removes every platform's user-scope skill (13 were left behind) and the kilo global command; and `graphify kilo uninstall` removes the kilo skill's `references/` sidecar (#4782, #4789, thanks @bercedev).
+- Feat: **llm** the Claude backend caches its (stable, large) system prompt with `cache_control`, counting the cached tokens back into `input_tokens`, and `GRAPHIFY_CLAUDE_PROMPT_CACHE=0` disables it for gateways that reject `cache_control` (#4835, #4855, #4880, thanks @Jvxoq and @1akashkalita).
+- Fix: **prompt** the node-id format description in the extraction prompt matches what `ids.py` actually produces (word characters kept, non-ASCII letters/digits preserved, ASCII lowercased) instead of the stale "`[a-z0-9_]` only" wording (#4432, #4799, thanks @dupeisen).
+- Docs: **how-it-works** the supported-language count is updated (about 40: 33 tree-sitter grammars plus 7 built-in parsers) and Pass 3 is described as running the configured LLM backend, not Claude only (#4873, thanks @SyedFahad7).
 
 ## 0.9.99 (2026-10-30)
 
