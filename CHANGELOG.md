@@ -2,7 +2,7 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/Graphify-Labs/graphify/releases)
 
-## 0.9.100 (unreleased)
+## 0.9.100 (2026-11-01)
 
 - Fix: **ids** a type and a function whose names differ only in case (`Foo` the class, `foo` the function) get distinct node ids instead of colliding (which dropped one node and minted a bogus self-loop) (#4904, #4908, thanks @bercedev).
 - Fix: **php** a `Scope::MEMBER` access in a class-level initializer (a const value, a property default, or a parameter/promoted-constructor default) emits a `references_constant` edge; `self::`/`static::`/`parent::` are skipped and unknown scopes mint no stub (#4648, #4895, thanks @Jitendarmahara).
